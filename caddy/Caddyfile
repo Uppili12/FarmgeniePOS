@@ -1,0 +1,54 @@
+{
+    auto_https disable_redirects
+}
+https://farmgenie.itgenie.online {
+    bind 127.0.0.1
+    tls internal
+
+    # Persistent locally downloaded product images
+    handle /files/* {
+        root * "C:/Users/uppil/AppData/Local/FarmGeniePOS/offline-assets"
+        file_server
+    }
+    # Persistent offline Font Awesome fonts
+    handle /webfonts/* {
+        root * "C:/Users/uppil/AppData/Local/FarmGeniePOS/offline-assets"
+        file_server
+    }
+    handle /shell-asset {
+        reverse_proxy 127.0.0.1:5188
+    }
+
+    handle {
+        reverse_proxy https://15.206.215.63 {
+            header_up Host farmgenie.itgenie.online
+            transport http {
+                tls_server_name farmgenie.itgenie.online
+                dial_timeout 3s
+                response_header_timeout 20s
+            }
+        }
+    }
+
+    handle_errors {
+        @pos path /bill--
+        handle @pos {
+            rewrite * /pos
+            reverse_proxy 127.0.0.1:5188
+        }
+
+        @assets path /assets/* /files/* /website_script.js
+        handle @assets {
+            rewrite * /shell-asset?u=https://farmgenie.itgenie.online{http.request.uri.path}
+            reverse_proxy 127.0.0.1:5188 {
+                header_up X-FarmGenie-Local-Request farmgenie-pos-v1
+            }
+        }
+
+        handle {
+            respond "ERPNext unavailable; no offline route for this resource" 503
+        }
+    }
+}
+
+
